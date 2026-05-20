@@ -37,26 +37,60 @@ npm run build:backend
 
 ## Publish
 
-- Web: Deploy the `app` web build to Vercel, Netlify, or any static host
-- Mobile: Use Expo to publish to iOS and Android app stores
+### GitHub setup
 
-### GitHub
-
-If you already have a GitHub repository, add it as a remote:
+This project is ready for GitHub publishing. Use the following commands after creating a repository named `andys-smoke-shop` under your GitHub account:
 
 ```bash
 cd /Users/dhruv2309/andys-smoke-shop
-git remote add origin https://github.com/<your-username>/<repo-name>.git
+git remote add origin https://github.com/Dhruv2309/andys-smoke-shop.git
 git push -u origin main
 ```
 
-### Expo publish
+### Web deployment
+
+This repo includes a GitHub Actions workflow to build and deploy the Expo web output to GitHub Pages on every push to `main`.
+
+To deploy manually:
+
+```bash
+cd /Users/dhruv2309/andys-smoke-shop
+npm install
+npm run build:web
+```
+
+To publish to GitHub Pages:
+
+1. Push to `main`
+2. Enable GitHub Pages in repo settings using branch `gh-pages`
+3. The site will be available at `https://Dhruv2309.github.io/andys-smoke-shop`
+
+### Expo mobile publish
+
+To publish to Expo Cloud and prepare for iOS/Android app store submission:
 
 ```bash
 cd /Users/dhruv2309/andys-smoke-shop/app
 npm install
-npx expo publish
+npx expo login
+npx eas build --platform all
 ```
+
+### Stripe secret configuration
+
+Copy `.env.example` to `.env` and set your Stripe secret key:
+
+```bash
+cp .env.example .env
+# then edit .env and set STRIPE_SECRET_KEY
+```
+
+For production, set these values in your deployment environment:
+
+- `STRIPE_SECRET_KEY`
+- `SUCCESS_URL`
+- `CANCEL_URL`
+- `BACKEND_URL`
 
 > Note: actual App Store / Google Play publishing requires Apple and Google developer accounts and approval.
 
