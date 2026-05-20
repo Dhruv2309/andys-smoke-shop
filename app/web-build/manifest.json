@@ -1,8 +1,0 @@
-{
-  "display": "standalone",
-  "lang": "en",
-  "name": "Andys Smoke Shop",
-  "short_name": "Andys Smoke Shop",
-  "start_url": "/?utm_source=web_app_manifest",
-  "orientation": "portrait"
-}
