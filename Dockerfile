@@ -1,17 +1,14 @@
-FROM node:18-alpine AS base
+FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
-COPY backend/package.json backend/package-lock.json ./backend/
+COPY backend/package.json backend/package-lock.json* ./
 RUN npm install
-COPY backend ./backend
-WORKDIR /app/backend
+COPY backend .
 RUN npm run build
 
 FROM node:18-alpine AS runtime
 WORKDIR /app
-COPY --from=base /app/backend/dist ./backend/dist
-COPY --from=base /app/backend/package.json ./backend/package.json
-COPY --from=base /app/node_modules ./node_modules
-WORKDIR /app/backend
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
