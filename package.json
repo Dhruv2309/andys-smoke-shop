@@ -1,0 +1,21 @@
+{
+  "name": "andys-smoke-shop",
+  "private": true,
+  "workspaces": [
+    "app",
+    "backend"
+  ],
+  "scripts": {
+    "start": "npm --prefix app start",
+    "web": "npm --prefix app run web",
+    "android": "npm --prefix app run android",
+    "ios": "npm --prefix app run ios",
+    "backend": "npm --prefix backend run dev",
+    "dev": "npx concurrently \"npm run backend\" \"npm run web\"",
+    "build:web": "npm --prefix app run build",
+    "build:backend": "npm --prefix backend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
