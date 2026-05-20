@@ -1,6 +1,14 @@
+import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import Stripe from 'stripe';
 import { z } from 'zod';
+
+dotenv.config();
+const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
+const stripe = stripeSecret
+  ? new Stripe(stripeSecret, { apiVersion: '2022-11-15' })
+  : null;
 
 const products = [
   {
@@ -71,11 +79,12 @@ const products = [
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true });
+async function start() {
+  await app.register(cors, { origin: true });
 
-app.get('/api/products', async () => ({ products }));
+  app.get('/api/products', async () => ({ products }));
 
-app.get('/api/categories', async () => ({ categories: Array.from(new Set(products.map((item) => item.category))) }));
+  app.get('/api/categories', async () => ({ categories: Array.from(new Set(products.map((item) => item.category))) }));
 
 const orderSchema = z.object({
   name: z.string().min(2),
@@ -99,12 +108,51 @@ app.post('/api/checkout', async (request, reply) => {
   }, 0);
 
   const orderId = `AS-${Date.now()}`;
+  const total = Number(orderTotal.toFixed(2));
+
+  if (!stripe) {
+    return {
+      orderId,
+      status: 'pending',
+      total,
+      message: 'Order recorded. Configure STRIPE_SECRET_KEY in .env to enable live checkout.',
+      paymentUrl: `https://pay.andys-smokeshop.example.com/checkout/${orderId}`
+    };
+  }
+
+  const lineItems = body.data.items.map((item) => {
+    const product = products.find((product) => product.id === item.id);
+    return {
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: product?.name ?? item.id,
+          description: product?.description ?? ''
+        },
+        unit_amount: Math.round((product?.price ?? 0) * 100)
+      },
+      quantity: item.quantity
+    };
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    mode: 'payment',
+    line_items: lineItems,
+    success_url: process.env.SUCCESS_URL || 'https://andys-smokeshop.example.com/success',
+    cancel_url: process.env.CANCEL_URL || 'https://andys-smokeshop.example.com/cancel',
+    metadata: {
+      orderId,
+      customerEmail: body.data.email
+    }
+  });
+
   return {
     orderId,
     status: 'pending',
-    total: Number(orderTotal.toFixed(2)),
-    message: 'Order received. Complete payment using the provided mock payment link.',
-    paymentUrl: `https://pay.andys-smokeshop.example.com/checkout/${orderId}`
+    total,
+    message: 'Order recorded. Complete payment using Stripe Checkout.',
+    paymentUrl: session.url
   };
 });
 
@@ -112,7 +160,13 @@ app.get('/api/legal', async () => ({
   message: 'Customers must be 21+ to purchase tobacco, nicotine, CBD, or delta products in Indiana. Verify compliance before accepting sales.'
 }));
 
-app.setNotFoundHandler(() => ({ error: 'Route not found' }));
+  app.setNotFoundHandler(() => ({ error: 'Route not found' }));
 
-const port = Number(process.env.PORT || 3000);
-await app.listen({ host: '0.0.0.0', port });
+  const port = Number(process.env.PORT || 3000);
+  await app.listen({ host: '0.0.0.0', port });
+}
+
+start().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

@@ -40,6 +40,24 @@ npm run build:backend
 - Web: Deploy the `app` web build to Vercel, Netlify, or any static host
 - Mobile: Use Expo to publish to iOS and Android app stores
 
+### GitHub
+
+If you already have a GitHub repository, add it as a remote:
+
+```bash
+cd /Users/dhruv2309/andys-smoke-shop
+git remote add origin https://github.com/<your-username>/<repo-name>.git
+git push -u origin main
+```
+
+### Expo publish
+
+```bash
+cd /Users/dhruv2309/andys-smoke-shop/app
+npm install
+npx expo publish
+```
+
 > Note: actual App Store / Google Play publishing requires Apple and Google developer accounts and approval.
 
 ## Legal and compliance

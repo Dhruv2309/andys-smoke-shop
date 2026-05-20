@@ -3,6 +3,7 @@ import { AnimatePresence, MotiView } from 'moti';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   SafeAreaView,
@@ -76,6 +77,7 @@ export default function App() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [paymentUrl, setPaymentUrl] = useState('');
 
   useEffect(() => {
     async function loadProducts() {
@@ -155,6 +157,10 @@ export default function App() {
       if (response.ok) {
         setCheckoutMessage(`Order ${data.orderId} created. Total $${data.total}.`);
         setCart({});
+        if (data.paymentUrl) {
+          setPaymentUrl(data.paymentUrl);
+          Linking.openURL(data.paymentUrl).catch(() => {});
+        }
       } else {
         setCheckoutMessage('Checkout failed. Please try again.');
       }
@@ -239,6 +245,11 @@ export default function App() {
             </Pressable>
           </View>
           {checkoutMessage ? <Text style={styles.messageText}>{checkoutMessage}</Text> : null}
+          {paymentUrl ? (
+            <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(paymentUrl)}>
+              <Text style={styles.buttonText}>Open Payment Link</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.footer}>
@@ -331,6 +342,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 14
+  },
+  secondaryButton: {
+    backgroundColor: '#334155',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    alignItems: 'center',
+    marginTop: 12
   },
   primaryButton: {
     backgroundColor: '#0f172a',
