@@ -66,3 +66,25 @@ CREATE TABLE IF NOT EXISTS age_verifications (
 
 -- Index for looking up active carts per user quickly
 CREATE INDEX IF NOT EXISTS idx_carts_user_status ON carts(user_id, status);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS products (
+  sku           TEXT          PRIMARY KEY,
+  name          VARCHAR(255)  NOT NULL,
+  brand         VARCHAR(100),
+  category      VARCHAR(100)  NOT NULL,
+  subcategory   VARCHAR(100),
+  description   TEXT,
+  price         NUMERIC(10,2) NOT NULL,
+  cost_price    NUMERIC(10,2),
+  stock         INTEGER       NOT NULL DEFAULT 0,
+  min_stock     INTEGER       NOT NULL DEFAULT 5,
+  is_active     BOOLEAN       DEFAULT TRUE,
+  age_restricted BOOLEAN      DEFAULT TRUE,
+  created_at    TIMESTAMPTZ   DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
