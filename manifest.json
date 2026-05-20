@@ -1,0 +1,7 @@
+{
+  "display": "standalone",
+  "lang": "en",
+  "name": "andys-smoke-shop",
+  "short_name": "andys-smoke-shop",
+  "start_url": "/?utm_source=web_app_manifest"
+}
