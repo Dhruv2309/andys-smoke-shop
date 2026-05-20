@@ -4,20 +4,31 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm ci
+          node-version: '18'
+
+      - name: Install app dependencies
+        run: npm ci
+        working-directory: app
+
       - name: Build web
-        run: npm run build:web
+        run: npx expo export:web
+        working-directory: app
         env:
           REACT_APP_API_URL: ${{ secrets.BACKEND_URL }}
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
