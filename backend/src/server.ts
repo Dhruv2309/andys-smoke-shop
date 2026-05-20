@@ -75,6 +75,30 @@ async function getOrCreateCart(userId: string): Promise<string> {
   return created.rows[0].id;
 }
 
+async function autoMigrateSchema() {
+  if (!db) return;
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const schemaPath = path.join(__dirname, '..', 'schema.sql');
+    if (!fs.existsSync(schemaPath)) { console.log('[schema] schema.sql not found, skipping'); return; }
+    const sql = fs.readFileSync(schemaPath, 'utf8');
+    const statements = sql
+      .split(/;\s*(?:\n|$)/)
+      .map((s) => s.trim())
+      .filter((s) => s && !s.startsWith('--'));
+    console.log(`[schema] Applying ${statements.length} schema statements...`);
+    for (const stmt of statements) {
+      try { await db.query(stmt); } catch (err: any) {
+        if (!err.message?.includes('already exists') && !err.message?.includes('duplicate')) {
+          console.warn('[schema] warn:', err.message?.slice(0, 120));
+        }
+      }
+    }
+    console.log('[schema] Schema up to date');
+  } catch (err) { console.error('[schema] Migration error:', err); }
+}
+
 async function autoSeedIfEmpty() {
   if (!db) return;
   try {
@@ -755,6 +779,7 @@ async function start() {
 
   const port = Number(process.env.PORT || 3000);
   await app.listen({ host: '0.0.0.0', port });
+  await autoMigrateSchema();
   await autoSeedIfEmpty();
 }
 
