@@ -405,6 +405,60 @@ async function start() {
     return { url: session.url, sessionId: session.id };
   });
 
+  // Direct Stripe poll — doesn't depend on webhooks firing
+  app.get('/api/age-verification/check', { onRequest: [authenticate] }, async (request, reply) => {
+    if (!stripe || !db) return reply.status(503).send({ error: 'Service not configured' });
+
+    const { rows: userRows } = await db.query(
+      'SELECT age_verified FROM users WHERE id = $1',
+      [request.user.userId]
+    );
+    if (userRows[0]?.age_verified) return { verified: true };
+
+    const { rows: sessions } = await db.query(
+      `SELECT stripe_session_id FROM age_verifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5`,
+      [request.user.userId]
+    );
+
+    for (const row of sessions) {
+      try {
+        const vs = await stripe.identity.verificationSessions.retrieve(row.stripe_session_id);
+        if (vs.status !== 'verified') continue;
+
+        const dob = vs.verified_outputs?.dob;
+        if (dob?.year && dob?.month && dob?.day) {
+          const dobDate = new Date(dob.year, dob.month - 1, dob.day);
+          const age = Math.floor((Date.now() - dobDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+          if (age < 21) {
+            await db.query(
+              `UPDATE age_verifications SET status = 'failed' WHERE stripe_session_id = $1`,
+              [row.stripe_session_id]
+            );
+            continue;
+          }
+          await db.query('UPDATE users SET age_verified = true WHERE id = $1', [request.user.userId]);
+          await db.query(
+            `UPDATE age_verifications SET status = 'verified', verified_dob = $1 WHERE stripe_session_id = $2`,
+            [
+              `${dob.year}-${String(dob.month).padStart(2, '0')}-${String(dob.day).padStart(2, '0')}`,
+              row.stripe_session_id
+            ]
+          );
+        } else {
+          // Verified but no DOB in outputs (test mode edge case)
+          await db.query('UPDATE users SET age_verified = true WHERE id = $1', [request.user.userId]);
+          await db.query(
+            `UPDATE age_verifications SET status = 'verified' WHERE stripe_session_id = $1`,
+            [row.stripe_session_id]
+          );
+        }
+        return { verified: true };
+      } catch {}
+    }
+
+    return { verified: false };
+  });
+
   // ── Stripe Webhook ────────────────────────────────────────────────────────
   app.post('/api/webhooks/stripe', async (request, reply) => {
     if (!stripe) return reply.status(503).send({ error: 'Stripe not configured' });

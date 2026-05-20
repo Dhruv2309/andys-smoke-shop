@@ -97,6 +97,7 @@ export default function App() {
   const [adminSearch, setAdminSearch] = useState('');
   const [adminCategory, setAdminCategory] = useState('All');
   const [adminLoading, setAdminLoading] = useState(false);
+  const [checkVerifyLoading, setCheckVerifyLoading] = useState(false);
   const [editingSku, setEditingSku] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
@@ -270,12 +271,23 @@ export default function App() {
 
   async function handleCheckVerificationStatus() {
     if (!authUser) return;
+    setCheckVerifyLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${authUser.token}` } });
+      const res = await fetch(`${API_URL}/api/age-verification/check`, {
+        headers: { Authorization: `Bearer ${authUser.token}` }
+      });
       const data = await res.json();
-      if (res.ok && data.user.ageVerified) { setAuthUser((u) => u ? { ...u, ageVerified: true } : u); setScreen('shop'); }
-      else { Alert.alert('Not verified yet', 'Your ID has not been verified yet.'); }
-    } catch { Alert.alert('Error', 'Could not connect to server.'); }
+      if (res.ok && data.verified) {
+        setAuthUser((u) => u ? { ...u, ageVerified: true } : u);
+        setScreen('shop');
+      } else {
+        Alert.alert('Not verified yet', 'Complete the Stripe Identity verification first, then tap Check Status.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not connect to server.');
+    } finally {
+      setCheckVerifyLoading(false);
+    }
   }
 
   async function loadPaymentMethods() {
@@ -522,8 +534,10 @@ export default function App() {
           <Pressable style={styles.primaryButton} onPress={handleStartVerification}>
             <Text style={styles.buttonText}>Start Verification</Text>
           </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={handleCheckVerificationStatus}>
-            <Text style={styles.buttonText}>I've Completed — Check Status</Text>
+          <Pressable style={styles.secondaryButton} onPress={handleCheckVerificationStatus} disabled={checkVerifyLoading}>
+            {checkVerifyLoading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.buttonText}>I've Completed — Check Status</Text>}
           </Pressable>
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Sign Out</Text>
