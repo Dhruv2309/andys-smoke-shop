@@ -773,6 +773,22 @@ async function start() {
     }
   );
 
+  // ── Bootstrap: grant first admin (only works when zero admins exist) ─────
+  app.post('/api/bootstrap/make-admin', async (request, reply) => {
+    if (!db) return reply.status(503).send({ error: 'Database not configured' });
+    const { email, secret } = (request.body as any) || {};
+    if (secret !== (process.env.BOOTSTRAP_SECRET || 'andys-bootstrap-2024')) {
+      return reply.status(403).send({ error: 'Invalid secret' });
+    }
+    const { rows: existing } = await db.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
+    if (parseInt(existing[0].count) > 0) {
+      return reply.status(409).send({ error: 'Admin already exists — use the admin panel to grant access.' });
+    }
+    const { rowCount } = await db.query('UPDATE users SET is_admin = true WHERE email = $1', [email]);
+    if (!rowCount) return reply.status(404).send({ error: 'User not found — register first.' });
+    return { success: true, message: `${email} is now an admin. Sign out and back in to see the Admin button.` };
+  });
+
   // ── Legal ─────────────────────────────────────────────────────────────────
   app.get('/api/legal', async () => ({
     message: 'Customers must be 21+ to purchase tobacco, nicotine, CBD, or delta products in Indiana.'

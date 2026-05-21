@@ -33,6 +33,17 @@ async function build() {
         return;
       }
       console.log(stats.toString({ colors: true, chunks: false, modules: false }));
+
+      // Expo writes index.html to app/web-build/; copy it to the JS output dir
+      // so both index.html and static/ are always co-located in web-build/
+      const fs = require('fs');
+      const expoHtml = path.resolve(__dirname, 'web-build', 'index.html');
+      const destHtml = path.resolve(config.output.path, 'index.html');
+      if (fs.existsSync(expoHtml)) {
+        fs.copyFileSync(expoHtml, destHtml);
+        console.log('Copied index.html from app/web-build →', destHtml);
+      }
+
       console.log('\nBuild complete →', config.output.path);
       resolve();
     });
