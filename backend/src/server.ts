@@ -82,11 +82,12 @@ async function autoMigrateSchema() {
     const path = await import('path');
     const schemaPath = path.join(__dirname, '..', 'schema.sql');
     if (!fs.existsSync(schemaPath)) { console.log('[schema] schema.sql not found, skipping'); return; }
-    const sql = fs.readFileSync(schemaPath, 'utf8');
+    const raw = fs.readFileSync(schemaPath, 'utf8');
+    const sql = raw.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
     const statements = sql
       .split(/;\s*(?:\n|$)/)
       .map((s) => s.trim())
-      .filter((s) => s && !s.startsWith('--'));
+      .filter((s) => s.length > 0);
     console.log(`[schema] Applying ${statements.length} schema statements...`);
     for (const stmt of statements) {
       try { await db.query(stmt); } catch (err: any) {
@@ -113,8 +114,10 @@ async function autoSeedIfEmpty() {
     const path = await import('path');
     const seedPath = path.join(__dirname, '..', 'seed.sql');
     if (!fs.existsSync(seedPath)) { console.log('[seed] seed.sql not found, skipping'); return; }
-    const sql = fs.readFileSync(seedPath, 'utf8');
-    const statements = sql.split(/;\s*\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith('--'));
+    const raw = fs.readFileSync(seedPath, 'utf8');
+    // Strip line comments before splitting so section-comment headers don't swallow INSERT blocks
+    const sql = raw.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    const statements = sql.split(/;\s*(?:\n|$)/).map((s) => s.trim()).filter((s) => s.length > 0);
     for (const stmt of statements) {
       try { await db.query(stmt); } catch (err: any) {
         if (!err.message?.includes('already exists')) console.warn('[seed] stmt warn:', err.message);
