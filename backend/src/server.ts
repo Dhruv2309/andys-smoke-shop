@@ -177,7 +177,7 @@ async function start() {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
       `SELECT sku AS id, sku, name, brand, category, subcategory, description,
-              price::float, stock, min_stock, age_restricted
+              price::float, stock, min_stock, image_url, age_restricted
        FROM products ${where} ORDER BY category, name`,
       params
     );
@@ -279,7 +279,7 @@ async function start() {
 
     const skus = cartRows.map((r) => r.product_id);
     const { rows: productRows } = await db.query(
-      `SELECT sku AS id, sku, name, brand, category, description, price::float FROM products WHERE sku = ANY($1)`,
+      `SELECT sku AS id, sku, name, brand, category, description, price::float, image_url FROM products WHERE sku = ANY($1)`,
       [skus]
     );
     const productMap = new Map(productRows.map((p) => [p.sku, p]));
@@ -668,6 +668,7 @@ async function start() {
     costPrice: z.number().nonnegative().optional(),
     stock: z.number().int().nonnegative().default(0),
     minStock: z.number().int().nonnegative().default(5),
+    imageUrl: z.string().url().optional(),
     ageRestricted: z.boolean().default(true),
     isActive: z.boolean().default(true)
   });
@@ -693,12 +694,12 @@ async function start() {
   app.post('/api/admin/products', { onRequest: [authenticateAdmin] }, async (request, reply) => {
     const body = productSchema.safeParse(request.body);
     if (!body.success) return reply.status(400).send({ error: body.error.format() });
-    const { sku, name, brand, category, subcategory, description, price, costPrice, stock, minStock, ageRestricted, isActive } = body.data;
+    const { sku, name, brand, category, subcategory, description, price, costPrice, stock, minStock, imageUrl, ageRestricted, isActive } = body.data;
     try {
       await db!.query(
-        `INSERT INTO products (sku, name, brand, category, subcategory, description, price, cost_price, stock, min_stock, age_restricted, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [sku, name, brand, category, subcategory, description, price, costPrice ?? null, stock, minStock, ageRestricted, isActive]
+        `INSERT INTO products (sku, name, brand, category, subcategory, description, price, cost_price, stock, min_stock, image_url, age_restricted, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [sku, name, brand, category, subcategory, description, price, costPrice ?? null, stock, minStock, imageUrl ?? null, ageRestricted, isActive]
       );
       return { success: true, sku };
     } catch (err: any) {
@@ -714,7 +715,7 @@ async function start() {
     async (request, reply) => {
       const body = productSchema.partial().safeParse(request.body);
       if (!body.success) return reply.status(400).send({ error: body.error.format() });
-      const { name, brand, category, subcategory, description, price, costPrice, stock, minStock, ageRestricted, isActive } = body.data;
+      const { name, brand, category, subcategory, description, price, costPrice, stock, minStock, imageUrl, ageRestricted, isActive } = body.data;
       const result = await db!.query(
         `UPDATE products SET
            name = COALESCE($1, name),
@@ -726,11 +727,12 @@ async function start() {
            cost_price = COALESCE($7, cost_price),
            stock = COALESCE($8, stock),
            min_stock = COALESCE($9, min_stock),
-           age_restricted = COALESCE($10, age_restricted),
-           is_active = COALESCE($11, is_active),
+           image_url = COALESCE($10, image_url),
+           age_restricted = COALESCE($11, age_restricted),
+           is_active = COALESCE($12, is_active),
            updated_at = NOW()
-         WHERE sku = $12`,
-        [name, brand, category, subcategory, description, price ?? null, costPrice ?? null, stock ?? null, minStock ?? null, ageRestricted ?? null, isActive ?? null, request.params.sku]
+         WHERE sku = $13`,
+        [name, brand, category, subcategory, description, price ?? null, costPrice ?? null, stock ?? null, minStock ?? null, imageUrl ?? null, ageRestricted ?? null, isActive ?? null, request.params.sku]
       );
       if (result.rowCount === 0) return reply.status(404).send({ error: 'Product not found' });
       return { success: true };
@@ -750,6 +752,22 @@ async function start() {
       );
       if (result.rowCount === 0) return reply.status(404).send({ error: 'Product not found' });
       return { success: true, stock: result.rows[0].stock };
+    }
+  );
+
+  // Update product image
+  app.put<{ Params: { sku: string } }>(
+    '/api/admin/products/:sku/image',
+    { onRequest: [authenticateAdmin] },
+    async (request, reply) => {
+      const body = z.object({ imageUrl: z.string().url() }).safeParse(request.body);
+      if (!body.success) return reply.status(400).send({ error: body.error.format() });
+      const result = await db!.query(
+        `UPDATE products SET image_url = $1, updated_at = NOW() WHERE sku = $2`,
+        [body.data.imageUrl, request.params.sku]
+      );
+      if (result.rowCount === 0) return reply.status(404).send({ error: 'Product not found' });
+      return { success: true, imageUrl: body.data.imageUrl };
     }
   );
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -10,7 +11,8 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
+  FlatList
 } from 'react-native';
 
 const storage = {
@@ -31,6 +33,7 @@ interface Product {
   subcategory?: string;
   price: number;
   description: string;
+  imageUrl?: string;
   stock?: number;
   minStock?: number;
   ageRestricted?: boolean;
@@ -100,8 +103,9 @@ export default function App() {
   const [editingSku, setEditingSku] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newProduct, setNewProduct] = useState({ sku: '', name: '', brand: '', category: '', subcategory: '', description: '', price: '', stock: '', minStock: '5', ageRestricted: true });
+  const [newProduct, setNewProduct] = useState({ sku: '', name: '', brand: '', category: '', subcategory: '', description: '', price: '', stock: '', minStock: '5', imageUrl: '', ageRestricted: true });
 
   // Session restore
   useEffect(() => {
@@ -390,6 +394,7 @@ export default function App() {
     const payload: Record<string, unknown> = {};
     if (editPrice) payload.price = parseFloat(editPrice);
     if (editStock) payload.stock = parseInt(editStock, 10);
+    if (editImageUrl) payload.imageUrl = editImageUrl;
     try {
       const res = await fetch(`${API_URL}/api/admin/products/${sku}`, {
         method: 'PUT',
@@ -400,9 +405,10 @@ export default function App() {
         setAdminProducts((prev) => prev.map((p) => p.sku === sku ? {
           ...p,
           ...(editPrice ? { price: parseFloat(editPrice) } : {}),
-          ...(editStock ? { stock: parseInt(editStock, 10) } : {})
+          ...(editStock ? { stock: parseInt(editStock, 10) } : {}),
+          ...(editImageUrl ? { imageUrl: editImageUrl } : {})
         } : p));
-        setEditingSku(null); setEditPrice(''); setEditStock('');
+        setEditingSku(null); setEditPrice(''); setEditStock(''); setEditImageUrl('');
       }
     } catch {}
   }
@@ -439,6 +445,7 @@ export default function App() {
           price: parseFloat(newProduct.price),
           stock: parseInt(newProduct.stock || '0', 10),
           minStock: parseInt(newProduct.minStock || '5', 10),
+          imageUrl: newProduct.imageUrl || undefined,
           ageRestricted: newProduct.ageRestricted,
           isActive: true
         })
@@ -446,7 +453,7 @@ export default function App() {
       if (res.ok) {
         Alert.alert('Success', `Product ${newProduct.sku} added.`);
         setShowAddForm(false);
-        setNewProduct({ sku: '', name: '', brand: '', category: '', subcategory: '', description: '', price: '', stock: '', minStock: '5', ageRestricted: true });
+        setNewProduct({ sku: '', name: '', brand: '', category: '', subcategory: '', description: '', price: '', stock: '', minStock: '5', imageUrl: '', ageRestricted: true });
         loadAdminProducts();
       } else {
         const data = await res.json();
@@ -661,6 +668,7 @@ export default function App() {
               <TextInput style={styles.input} placeholder="Price (e.g. 12.99)" placeholderTextColor="#888" keyboardType="decimal-pad" value={newProduct.price} onChangeText={(v) => setNewProduct((p) => ({ ...p, price: v }))} />
               <TextInput style={styles.input} placeholder="Stock quantity" placeholderTextColor="#888" keyboardType="number-pad" value={newProduct.stock} onChangeText={(v) => setNewProduct((p) => ({ ...p, stock: v }))} />
               <TextInput style={styles.input} placeholder="Min stock (default 5)" placeholderTextColor="#888" keyboardType="number-pad" value={newProduct.minStock} onChangeText={(v) => setNewProduct((p) => ({ ...p, minStock: v }))} />
+              <TextInput style={styles.input} placeholder="Image URL (HTTPS, optional)" placeholderTextColor="#888" value={newProduct.imageUrl} onChangeText={(v) => setNewProduct((p) => ({ ...p, imageUrl: v }))} />
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
                 <Pressable
                   style={[styles.toggleBtn, newProduct.ageRestricted && styles.toggleBtnOn]}
@@ -738,6 +746,7 @@ export default function App() {
                   <View style={styles.editForm}>
                     <TextInput style={styles.inlineInput} placeholder="New price" placeholderTextColor="#888" keyboardType="decimal-pad" value={editPrice} onChangeText={setEditPrice} />
                     <TextInput style={styles.inlineInput} placeholder="New stock" placeholderTextColor="#888" keyboardType="number-pad" value={editStock} onChangeText={setEditStock} />
+                    <TextInput style={styles.inlineInput} placeholder="Image URL (HTTPS)" placeholderTextColor="#888" value={editImageUrl} onChangeText={setEditImageUrl} />
                     <Pressable style={styles.saveBtn} onPress={() => adminSaveEdit(product.sku)}>
                       <Text style={styles.buttonText}>Save</Text>
                     </Pressable>
@@ -800,38 +809,66 @@ export default function App() {
         {/* Product count */}
         <Text style={styles.productCount}>{visibleProducts.length} products</Text>
 
-        {/* Products */}
+        {/* Products Grid */}
         {visibleProducts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No products found. Try a different search.</Text>
           </View>
         ) : (
-          visibleProducts.map((product) => (
-            <View key={product.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  {product.brand && <Text style={styles.productBrand}>{product.brand}</Text>}
-                  <Text style={styles.productName}>{product.name}</Text>
-                  <Text style={styles.productCategory}>
-                    {product.category}{product.subcategory ? ` › ${product.subcategory}` : ''}
-                  </Text>
+          <View style={styles.productsGrid}>
+            {visibleProducts.map((product, idx) => (
+              <View key={product.id} style={[styles.gridItem, idx % 2 === 1 && styles.gridItemOffset]}>
+                <View style={styles.productGridCard}>
+                  {/* Image Section */}
+                  <View style={styles.productImageWrapper}>
+                    {product.imageUrl ? (
+                      <Image
+                        source={{ uri: product.imageUrl }}
+                        style={styles.productGridImage}
+                      />
+                    ) : (
+                      <View style={styles.imageplaceholder}>
+                        <Text style={styles.placeholderText}>📦</Text>
+                      </View>
+                    )}
+                    
+                    {/* Stock Badge */}
+                    <View style={[styles.stockBadgeSmall, (product.stock ?? 0) > 0 ? styles.stockBadgeGreen : styles.stockBadgeRed]}>
+                      <Text style={styles.stockBadgeSmallText}>
+                        {(product.stock ?? 0) > 0 ? '✓ In Stock' : 'Out'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Product Info */}
+                  <View style={styles.productGridInfo}>
+                    {product.brand && (
+                      <Text style={styles.productBrandSmall}>{product.brand}</Text>
+                    )}
+                    <Text style={styles.productNameSmall} numberOfLines={2}>
+                      {product.name}
+                    </Text>
+                    <Text style={styles.productDescSmall} numberOfLines={1}>
+                      {product.category}{product.subcategory ? ` · ${product.subcategory}` : ''}
+                    </Text>
+                    
+                    {/* Price & Button */}
+                    <View style={styles.productGridFooter}>
+                      <Text style={styles.priceSmall}>${product.price?.toFixed(2)}</Text>
+                      <Pressable 
+                        style={[styles.addButtonSmall, (cart[product.id] || 0) > 0 && styles.addButtonSmallActive]}
+                        onPress={() => addToCart(product)}
+                      >
+                        <Text style={styles.addButtonSmallText}>
+                          {(cart[product.id] || 0) > 0 ? `✓ ${cart[product.id]}` : '+'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.skuTag}>{product.sku}</Text>
               </View>
-              <Text style={styles.productDescription}>{product.description}</Text>
-              <View style={styles.productFooter}>
-                <Text style={styles.price}>${product.price?.toFixed(2)}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  {(cart[product.id] || 0) > 0 && (
-                    <Text style={styles.cartQty}>×{cart[product.id]}</Text>
-                  )}
-                  <Pressable style={styles.addButton} onPress={() => addToCart(product)}>
-                    <Text style={styles.buttonText}>Add</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          ))
+            ))}
+          </View>
         )}
 
         {/* Cart */}
@@ -881,28 +918,157 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060914', paddingTop: Platform.OS === 'android' ? 24 : 0 },
+  container: { flex: 1, backgroundColor: '#0a0f1f', paddingTop: Platform.OS === 'android' ? 24 : 0 },
   centered: { justifyContent: 'center', alignItems: 'center' },
   authContent: { padding: 24, paddingTop: 60 },
-  scrollContent: { padding: 20, paddingBottom: 40 },
-  header: { marginBottom: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  title: { color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 2 },
-  shopAddress: { color: '#64748b', fontSize: 12, marginBottom: 4 },
-  welcomeText: { color: '#7c93c4', fontSize: 13 },
-  description: { color: '#cbd5e1', fontSize: 16, lineHeight: 24 },
-  logoutButton: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#17233c', marginTop: 4, marginLeft: 6 },
-  logoutText: { color: '#94a3b8', fontSize: 12 },
-  adminButton: { borderColor: '#f59e0b', borderWidth: 1 },
-  headerActions: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap' },
-  searchInput: { marginBottom: 12, marginTop: 4 },
-  categoryBar: { marginBottom: 12 },
-  categoryButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#17233c', marginRight: 8 },
-  categoryButtonActive: { backgroundColor: '#1f6feb' },
-  categoryText: { color: '#cbd5e1', fontSize: 13 },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+  header: { marginBottom: 16 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  title: { color: '#fff', fontSize: 32, fontWeight: '900', marginBottom: 4, letterSpacing: -0.5 },
+  shopAddress: { color: '#7c8ba8', fontSize: 12, fontWeight: '500', marginBottom: 4 },
+  welcomeText: { color: '#64b5f6', fontSize: 13, fontWeight: '600' },
+  description: { color: '#b0b8c8', fontSize: 16, lineHeight: 24 },
+  logoutButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#1a2543', marginTop: 4, marginLeft: 8 },
+  logoutText: { color: '#7c8ba8', fontSize: 12, fontWeight: '600' },
+  adminButton: { borderColor: '#f59e0b', borderWidth: 1.5 },
+  headerActions: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4 },
+  searchInput: { marginBottom: 14, marginTop: 8, borderWidth: 1.5, borderColor: '#1e3a5f', backgroundColor: '#0f1929' },
+  categoryBar: { marginBottom: 16, paddingVertical: 4 },
+  categoryButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 24, backgroundColor: '#1a2543', marginRight: 10, borderWidth: 1, borderColor: 'transparent' },
+  categoryButtonActive: { backgroundColor: '#1f6feb', borderColor: '#64b5f6' },
+  categoryText: { color: '#7c8ba8', fontSize: 13, fontWeight: '600' },
   categoryTextActive: { color: '#fff', fontWeight: '700' },
-  productCount: { color: '#64748b', fontSize: 12, marginBottom: 10 },
+  productCount: { color: '#64748b', fontSize: 13, fontWeight: '600', marginBottom: 14 },
+  
+  /* Grid Layout */
+  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 16 },
+  gridItem: { width: '48%', marginBottom: 14 },
+  gridItemOffset: { marginLeft: '2%' },
+  
+  productGridCard: { 
+    backgroundColor: '#0f172a', 
+    borderRadius: 16, 
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  
+  productImageWrapper: { 
+    position: 'relative',
+    width: '100%',
+    height: 160,
+    backgroundColor: '#1a2543'
+  },
+  
+  productGridImage: { 
+    width: '100%', 
+    height: '100%', 
+    resizeMode: 'cover' 
+  },
+  
+  imageplaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1a2543',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  
+  placeholderText: {
+    fontSize: 48,
+    opacity: 0.5
+  },
+  
+  stockBadgeSmall: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  
+  stockBadgeGreen: {
+    backgroundColor: '#10b981'
+  },
+  
+  stockBadgeRed: {
+    backgroundColor: '#ef4444'
+  },
+  
+  stockBadgeSmallText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  
+  productGridInfo: {
+    padding: 12
+  },
+  
+  productBrandSmall: { 
+    color: '#64b5f6', 
+    fontSize: 10, 
+    fontWeight: '700', 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.5,
+    marginBottom: 4
+  },
+  
+  productNameSmall: { 
+    color: '#fff', 
+    fontSize: 14, 
+    fontWeight: '700', 
+    marginBottom: 4,
+    lineHeight: 18
+  },
+  
+  productDescSmall: { 
+    color: '#7c8ba8', 
+    fontSize: 11,
+    marginBottom: 8
+  },
+  
+  productGridFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  
+  priceSmall: {
+    color: '#f0f9ff',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  
+  addButtonSmall: {
+    backgroundColor: '#1f6feb',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    minWidth: 44
+  },
+  
+  addButtonSmallActive: {
+    backgroundColor: '#10b981'
+  },
+  
+  addButtonSmallText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+    textAlign: 'center'
+  },
+
   card: { backgroundColor: '#0f172a', borderRadius: 16, padding: 16, marginBottom: 12 },
+  productImageContainer: { width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 12, backgroundColor: '#1e293b' },
+  productImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   productBrand: { color: '#7c93c4', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   productName: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 2 },

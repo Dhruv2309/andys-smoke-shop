@@ -80,11 +80,15 @@ CREATE TABLE IF NOT EXISTS products (
   cost_price    NUMERIC(10,2),
   stock         INTEGER       NOT NULL DEFAULT 0,
   min_stock     INTEGER       NOT NULL DEFAULT 5,
+  image_url     TEXT,
   is_active     BOOLEAN       DEFAULT TRUE,
   age_restricted BOOLEAN      DEFAULT TRUE,
   created_at    TIMESTAMPTZ   DEFAULT NOW(),
   updated_at    TIMESTAMPTZ   DEFAULT NOW()
 );
+
+-- Add image_url column to existing table if not already present
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
